@@ -1,0 +1,51 @@
+#The following code sets up a TwitchIO bot with PubSub to track subscriptions, bits, and raids, and updates a timer accordingly. I have not included the part to track donations:
+
+import asyncio
+import twitchio
+from twitchio.ext import commands, pubsub
+from datetime import datetime, timedelta
+
+initial_time = datetime.now() + timedelta(hours=1)
+timer = initial_time
+
+bot = commands.Bot(
+    irc_token='your-token',
+    client_id='your-client-id',
+    nick='your-nickname',
+    prefix='!',
+    initial_channels=['your-channel']
+)
+
+@bot.event
+async def event_ready():
+    'Called once when the bot goes online.'
+    print(f"{bot.nick} is online!")
+    bot.pubsub = pubsub.PubSubPool(bot)
+
+@bot.event()
+async def event_pubsub_bits(event: pubsub.PubSubBitsMessage):
+    global timer
+    timer += timedelta(minutes=event.bits_used//100)
+
+@bot.event()
+async def event_pubsub_subscription(event: pubsub.PubSubSubscriptionMessage):
+    global timer
+    timer += timedelta(minutes=5*event.cumulative_months)
+
+@bot.event()
+async def event_pubsub_raid(event: twitchio.ext.eventsub.ChannelRaidData):
+    global timer
+    timer += timedelta(minutes=event.viewer_count//10)
+
+async def main():
+    topics = [
+        pubsub.bits('your-token')['your-channel-id'],
+        pubsub.channel_subscriptions('your-token')['your-channel-id']
+    ]
+    await bot.pubsub.subscribe_topics(topics)
+    await bot.start()
+
+bot.loop.run_until_complete(main())
+
+#Please replace 'your-token', 'your-client-id', 'your-nickname', 'your-channel', and 'your-channel-id' with your actual token, client ID, nickname, channel, and channel ID, respectively.
+#This bot adds time to the timer when it receives bits, subscriptions, or raids, using the conversion rates you specified. The bot does not handle donations as that would require EventSub and a server.
